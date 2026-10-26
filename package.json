@@ -1,0 +1,21 @@
+{
+  "name": "geo-quest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fetch-data": "node scripts/fetch-data.mjs",
+    "build-data": "node scripts/build-data.mjs",
+    "build": "node scripts/bundle.mjs",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "d3-geo": "^3.1.1",
+    "esbuild": "^0.28.2",
+    "mapshaper": "^0.7.98",
+    "three": "^0.186.1",
+    "topojson-client": "^3.1.0",
+    "topojson-server": "^3.0.1",
+    "vitest": "^5.0.5"
+  }
+}

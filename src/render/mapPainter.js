@@ -21,8 +21,8 @@ export const COLORS = {
   capital: '#2b2b2b',
   warm: '#ff5a4e',
   cold: '#3b8cff',
-  fishing: 'rgba(255, 212, 0, 0.42)',
-  fishingLine: 'rgba(200, 150, 0, 0.9)',
+  fishing: 'rgba(255, 221, 0, 0.78)',
+  fishingLine: 'rgba(160, 110, 0, 0.95)',
 };
 
 export const BOX_COLORS = ['#c9c9c9', '#ef5350', '#ffa726', '#ffe14d', '#9ccc65', '#43a047'];

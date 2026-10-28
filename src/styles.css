@@ -122,7 +122,7 @@ input[type=text] {
 .chip-extra { color: var(--accent); font-size: 0.8rem; letter-spacing: 1px; }
 .chip.chip-water { background: rgba(56, 189, 248, 0.14); border-color: rgba(56, 189, 248, 0.5); color: #c4ecff; }
 .chip.chip-water:hover { background: rgba(56, 189, 248, 0.26); }
-.chip.chip-water.active { background: rgba(56, 189, 248, 0.42); border-color: #7dd3fc; color: #fff; }
+.chip.chip-water.active { background: #0284c7; border-color: #bae6fd; color: #fff; font-weight: 700; box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.35); }
 
 /* ------------------------------------------------------------- profiles */
 .profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; margin-top: 14px; }

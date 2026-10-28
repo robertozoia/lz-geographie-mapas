@@ -3,8 +3,8 @@ import { h, mount } from '../dom.js';
 import { app } from '../app.js';
 import { t, name, kindLabel, speak, canSpeak } from '../../i18n.js';
 import { stage } from '../stage.js';
-import { chips, backButton } from '../components.js';
-import { CATS, itemById } from '../../data.js';
+import { chips, backButton, categoryOptions } from '../components.js';
+import { itemById } from '../../data.js';
 import { pick } from '../../render/picking.js';
 import { boxOf } from '../../game/srs.js';
 import { BOX_COLORS } from '../../render/mapPainter.js';
@@ -80,7 +80,7 @@ app.register('explore', () => {
     h('header', { class: 'topbar' },
       backButton(() => { document.body.style.cursor = ''; app.go('home'); }),
       h('h1', {}, t('mode.explore')),
-      chips(CATS.map((c) => ({ value: c, label: t('cat.' + c) })), cat, (v) => {
+      chips(categoryOptions(), cat, (v) => {
         cat = v;
         reset();
         stage.setStyle({ cat });

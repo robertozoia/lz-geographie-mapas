@@ -3,8 +3,8 @@ import { h, mount } from '../dom.js';
 import { app } from '../app.js';
 import { t } from '../../i18n.js';
 import { stage } from '../stage.js';
-import { chips, backButton, starsText } from '../components.js';
-import { CATS, CONTINENTS, pool } from '../../data.js';
+import { chips, backButton, starsText, categoryOptions } from '../components.js';
+import { CONTINENTS, pool } from '../../data.js';
 import { isLearned } from '../../game/srs.js';
 import { stars } from '../../game/engine.js';
 import { BOX_COLORS } from '../../render/mapPainter.js';
@@ -40,7 +40,7 @@ app.register('mastery', () => {
     h('header', { class: 'topbar' },
       backButton(() => { document.body.style.cursor = ''; app.go('home'); }),
       h('h1', {}, t('home.mastery')),
-      chips(CATS.map((c) => ({ value: c, label: t('cat.' + c) })), cat, (v) => {
+      chips(categoryOptions(), cat, (v) => {
         cat = v;
         reset();
         stage.setHighlights([]);

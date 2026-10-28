@@ -3,8 +3,8 @@ import { h, mount } from '../dom.js';
 import { app } from '../app.js';
 import { t } from '../../i18n.js';
 import { stage } from '../stage.js';
-import { chips, backButton, starsText } from '../components.js';
-import { CATS, CONTINENTS, pool, hasClassList } from '../../data.js';
+import { chips, backButton, starsText, categoryOptions } from '../components.js';
+import { CONTINENTS, pool, hasClassList } from '../../data.js';
 import { stars, maxTierFor } from '../../game/engine.js';
 
 app.register('setup', ({ mode }) => {
@@ -57,7 +57,7 @@ app.register('setup', ({ mode }) => {
     h('p', { class: 'subtle' }, t(`mode.${mode}.desc`)),
     mode === 'capitals' ? null : [
       h('h3', {}, t('setup.category')),
-      chips(CATS.map((c) => ({ value: c, label: t('cat.' + c) })), config.cat, (v) => { config.cat = v; refresh(); }),
+      chips(categoryOptions(), config.cat, (v) => { config.cat = v; refresh(); }),
     ],
     listBox,
     h('h3', {}, t('setup.region')),

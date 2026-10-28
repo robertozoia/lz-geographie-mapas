@@ -52,6 +52,15 @@ describe('picking', () => {
     expect(ids(pick(-75, -32, 0.5, ['current']))[0]).toBe('o:humboldt');
     expect(ids(pick(30, -48, 0.5, ['current']))[0]).toBe('o:antarctic');
   });
+  it('splits the Caribbean into Mar Caribe and Mar de las Antillas', () => {
+    expect(ids(pick(-78, 15, 0.3, ['sea']))).toEqual(['s:caribbean']);
+    expect(ids(pick(-65, 14, 0.3, ['sea']))).toEqual(['s:antilles']);
+  });
+  it('finds fishing grounds and links them to their currents', () => {
+    expect(ids(pick(-78, -20, 0.3, ['fishing']))).toEqual(['f:pacific-se']);
+    expect(ids(pick(13.5, -28, 0.3, ['fishing']))).toEqual(['f:atlantic-se']);
+    expect(itemById.get('f:pacific-se').currents).toEqual(['o:humboldt']);
+  });
   it('finds the new worksheet seas inside their larger seas', () => {
     expect(ids(pick(20, 63, 0.3, ['sea']))).toEqual(['s:bothnia', 's:baltic']);
     expect(ids(pick(-62, 48, 0.3, ['sea']))[0]).toBe('s:st-lawrence-gulf');
@@ -72,11 +81,12 @@ describe('catalog', () => {
     for (const i of items) for (const l of ['en', 'es', 'de']) expect(i.n[l], `${i.id} ${l}`).toBeTruthy();
   });
   it('has every category', () => {
-    for (const c of CATS) expect(items.filter((i) => i.cat === c).length).toBeGreaterThanOrEqual(20);
+    for (const c of CATS) expect(items.filter((i) => i.cat === c).length).toBeGreaterThanOrEqual(c === 'fishing' ? 7 : 20);
   });
   it('matches the class worksheets', () => {
     expect(pool('river', 'world', 3, 'school').length).toBe(45);
-    expect(pool('sea', 'world', 3, 'school').length).toBe(40);
+    expect(pool('sea', 'world', 3, 'school').length).toBe(41);
+    expect(pool('fishing', 'world', 3, 'school').length).toBe(7);
     expect(pool('current', 'world', 3, 'school').length).toBe(20);
     const cur = items.filter((i) => i.cat === 'current');
     expect(cur.every((i) => i.kind === 'warm' || i.kind === 'cold')).toBe(true);
@@ -116,7 +126,7 @@ describe('engine', () => {
     for (const cat of CATS) {
       for (const mode of ['find', 'name']) {
         const r = makeRound(profile(), { mode, cat, cont: 'world', diff: 'auto' });
-        expect(r.questions.length).toBe(10);
+        expect(r.questions.length).toBe(Math.min(10, pool(cat).length));
         if (mode === 'name') for (const q of r.questions) expect(q.options.length).toBe(4);
       }
     }
@@ -129,9 +139,9 @@ describe('engine', () => {
     expect(r.questions.length).toBe(2);
   });
   it('builds class-list rounds from the worksheet only, distractors included', () => {
-    for (const cat of ['river', 'sea', 'current']) {
+    for (const cat of ['river', 'sea', 'current', 'fishing']) {
       const r = makeRound(profile(), { mode: 'name', cat, cont: 'world', diff: 'auto', list: 'school' });
-      expect(r.questions.length).toBe(10);
+      expect(r.questions.length).toBe(cat === 'fishing' ? 7 : 10);
       for (const q of r.questions) expect(q.options.every((o) => o.s), cat).toBe(true);
     }
   });

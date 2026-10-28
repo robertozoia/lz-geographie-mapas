@@ -84,7 +84,7 @@ export function makeRound(profile, config) {
 
 // Click tolerance in km for point and line targets, on top of the on-screen
 // pick tolerance.
-const NEAR_KM = { capital: 120, river: 80, current: 250 };
+const NEAR_KM = { capital: 120, river: 80, current: 250, fishing: 150 };
 
 // Check a map answer. `picked` are the items under the click (from pick()).
 export function checkMapAnswer(question, lon, lat, picked, seconds) {

@@ -134,6 +134,8 @@ export const rivers = [
 
 // --------------------------------------------------------- oceans and seas
 // match: Natural Earth marine polygon names (merged into one shape)
+// clip: [west, south, east, north] keeps only that part (used to split the
+//       Caribbean into Mar Caribe and Mar de las Antillas, as in class)
 export const seas = [
   { id: 'atlantic', s: 1, n: n('Atlantic Ocean', 'Océano Atlántico', 'Atlantischer Ozean'), c: ['eu', 'af', 'na', 'sa'], t: 1, kind: 'ocean', match: ['North Atlantic Ocean', 'South Atlantic Ocean', 'Sargasso Sea'] },
   { id: 'pacific', s: 1, n: n('Pacific Ocean', 'Océano Pacífico', 'Pazifischer Ozean'), c: ['as', 'oc', 'na', 'sa'], t: 1, kind: 'ocean', match: ['North Pacific Ocean', 'South Pacific Ocean'] },
@@ -141,7 +143,8 @@ export const seas = [
   { id: 'arctic', s: 1, n: n('Arctic Ocean', 'Océano Glacial Ártico', 'Arktischer Ozean'), c: ['eu', 'as', 'na'], t: 1, kind: 'ocean', match: ['Arctic Ocean'] },
   { id: 'southern', s: 1, n: n('Southern Ocean', 'Océano Glacial Antártico', 'Südlicher Ozean'), c: ['oc', 'sa', 'af'], t: 2, kind: 'ocean', match: ['SOUTHERN OCEAN'] },
   { id: 'mediterranean', s: 1, n: n('Mediterranean Sea', 'Mar Mediterráneo', 'Mittelmeer'), c: ['eu', 'af', 'as'], t: 1, match: ['Mediterranean Sea', 'Tyrrhenian Sea', 'Adriatic Sea', 'Ionian Sea', 'Balearic Sea', 'Aegean Sea', 'Sea of Crete', 'Ligurian Sea', 'Alboran Sea', 'Golfe du Lion', 'Gulf of Gabès', 'Gulf of Sidra'] },
-  { id: 'caribbean', s: 1, n: n('Caribbean Sea', 'Mar Caribe', 'Karibisches Meer'), c: ['na', 'sa'], t: 1, match: ['Caribbean Sea'] },
+  { id: 'caribbean', s: 1, n: n('Caribbean Sea', 'Mar Caribe', 'Karibisches Meer'), c: ['na', 'sa'], t: 1, match: ['Caribbean Sea'], clip: [-90, 5, -71.5, 25] },
+  { id: 'antilles', s: 1, n: n('Antilles Sea', 'Mar de las Antillas', 'Antillenmeer'), c: ['na', 'sa'], t: 2, match: ['Caribbean Sea'], clip: [-71.5, 5, -55, 25] },
   { id: 'gulf-of-mexico', s: 1, n: n('Gulf of Mexico', 'Golfo de México', 'Golf von Mexiko'), c: ['na'], t: 1, match: ['Gulf of Mexico', 'Bahía de Campeche'] },
   { id: 'north-sea', s: 1, n: n('North Sea', 'Mar del Norte', 'Nordsee'), c: ['eu'], t: 1, match: ['North Sea'] },
   { id: 'baltic', s: 1, n: n('Baltic Sea', 'Mar Báltico', 'Ostsee'), c: ['eu'], t: 1, match: ['Baltic Sea', 'Gulf of Bothnia', 'Gulf of Finland', 'Gulf of Riga'] },
@@ -288,4 +291,24 @@ export const currents = [
     path: [[-170, -60], [-140, -61], [-110, -60], [-85, -59], [-65, -58.5], [-45, -55], [-20, -51], [5, -49], [30, -48], [55, -48], [80, -48.5], [105, -50.5], [130, -53], [155, -56], [180, -59]] },
   { id: 'west-australian', s: 1, kind: 'cold', n: n('West Australian Current', 'Corriente Australiana Occidental', 'Westaustralstrom'), c: ['oc'], t: 3,
     path: [[80, -38], [95, -37.5], [107, -36], [112.5, -32.5], [113, -27], [112, -22]] },
+];
+
+// ---------------------------------------------------------- fishing grounds
+// The yellow "zonas pesqueras" of the currents worksheet, drawn by hand as
+// rough outlines. currents: the currents that feed them (shown in Explore).
+export const fishing = [
+  { id: 'pacific-ne', s: 1, n: n('Northeast Pacific (Alaska and Canada)', 'Pacífico Nororiental (Alaska y Canadá)', 'Nordostpazifik (Alaska und Kanada)'), c: ['na'], t: 2, currents: ['california'],
+    area: [[-153, 58.5], [-147, 60.8], [-140, 60.5], [-134, 58.5], [-129, 54.5], [-125.5, 50], [-123.5, 46], [-126.5, 45], [-130, 48.5], [-136, 53.5], [-146, 56.5]] },
+  { id: 'atlantic-ne', s: 1, n: n('Northeast Atlantic (Western Europe)', 'Atlántico Nororiental (Europa Occidental)', 'Nordostatlantik (Westeuropa)'), c: ['eu'], t: 2, currents: ['north-atlantic', 'canary'],
+    area: [[-12, 36], [-12.5, 44], [-9.5, 48.5], [-4.5, 49.8], [0, 48.5], [-0.5, 44.5], [-2, 43.2], [-7, 42.5], [-8, 38.5], [-7, 36.3]] },
+  { id: 'pacific-nw', s: 1, n: n('Northwest Pacific (Japan)', 'Pacífico Noroccidental (Japón)', 'Nordwestpazifik (Japan)'), c: ['as'], t: 1, currents: ['kuroshio', 'oyashio'],
+    area: [[128.5, 33], [130.5, 37.5], [135, 41], [139.5, 45.8], [146, 46], [146.5, 41.5], [142.5, 36.5], [138.5, 33], [132.5, 30.5]] },
+  { id: 'china-seas', s: 1, n: n('China Seas and Southeast Asia', 'Mares de China y Sudeste Asiático', 'Chinesische Meere und Südostasien'), c: ['as'], t: 2, currents: ['kuroshio'],
+    area: [[118.5, 39.5], [124, 38.5], [127, 34], [124.5, 28], [122.5, 23], [121, 17], [120, 10.5], [116, 5.5], [110, 3], [104, 7], [107.5, 13.5], [109.5, 20], [113.5, 22.5], [119.5, 26.5], [121.5, 31], [119.5, 35]] },
+  { id: 'pacific-se', s: 1, n: n('Southeast Pacific (Peru and Chile)', 'Pacífico Sudoriental (Perú y Chile)', 'Südostpazifik (Peru und Chile)'), c: ['sa'], t: 1, currents: ['humboldt'],
+    area: [[-82.5, -3], [-81, -8.5], [-77, -14], [-72, -18], [-71, -25], [-72, -32], [-73.8, -38], [-77.5, -38], [-77.5, -30], [-77.5, -21], [-81.5, -14], [-84.5, -6]] },
+  { id: 'atlantic-ec', s: 1, n: n('Eastern Central Atlantic (Gulf of Guinea)', 'Atlántico Centro-Oriental (Golfo de Guinea)', 'Östlicher Zentralatlantik (Golf von Guinea)'), c: ['af'], t: 2, currents: [],
+    area: [[-6, 4.8], [0, 5.5], [5.5, 4.5], [9.8, 4], [9.8, 0], [6, -1.5], [0, 0.5], [-6, 2.5]] },
+  { id: 'atlantic-se', s: 1, n: n('Southeast Atlantic (Namibia and South Africa)', 'Atlántico Sudoriental (Namibia y Sudáfrica)', 'Südostatlantik (Namibia und Südafrika)'), c: ['af'], t: 2, currents: ['benguela'],
+    area: [[11.5, -16.5], [14, -22], [15.5, -27], [18, -31.5], [20, -34.8], [17, -36], [13, -31], [10.5, -25], [9, -18]] },
 ];

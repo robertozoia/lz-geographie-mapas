@@ -19,6 +19,7 @@ export function infoCard(item, profile) {
   if (item.cap) lines.push(t('explore.capital', { name: name(itemById.get(item.cap)) }));
   if (item.of) lines.push(t('explore.capitalOf', { name: name(itemById.get(item.of)) }));
   if (item.part) lines.push(t('explore.partOf', { name: name(itemById.get(item.part)) }));
+  if (item.currents?.length) lines.push(t('explore.currents', { names: item.currents.map((id) => name(itemById.get(id))).join(', ') }));
   if (item.kind === 'warm' || item.kind === 'cold') lines.push((item.kind === 'warm' ? '🔴 ' : '🔵 ') + t('kind.' + item.kind));
   lines.push(item.c.map((c) => t('cont.' + c)).join(' · '));
   const box = item.cat === 'territory' ? null : boxOf(profile.progress, item.id);

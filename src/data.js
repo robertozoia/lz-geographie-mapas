@@ -4,7 +4,7 @@ import { geoBounds } from 'd3-geo';
 import topo from './data/geo.json';
 import catalog from './data/catalog.json';
 
-export const CATS = ['country', 'capital', 'river', 'sea', 'range', 'current'];
+export const CATS = ['country', 'capital', 'river', 'sea', 'range', 'current', 'fishing'];
 export const CONTINENTS = ['af', 'eu', 'as', 'na', 'sa', 'oc'];
 
 export const items = catalog.items;
@@ -19,13 +19,14 @@ export const seas = layer('seas');
 export const ranges = layer('ranges');
 export const lakes = layer('lakes');
 export const currents = layer('currents');
+export const fishing = layer('fishing');
 
 export const borders = mesh(topo, topo.objects.countries, (a, b) => a !== b);
 export const coastline = mesh(topo, topo.objects.countries, (a, b) => a === b);
 
 // Geometry for each item id (capitals are points from the catalog).
 export const featureById = new Map();
-for (const f of [...countries, ...rivers, ...seas, ...ranges, ...currents]) {
+for (const f of [...countries, ...rivers, ...seas, ...ranges, ...currents, ...fishing]) {
   f.id = f.properties.id;
   f.bounds = geoBounds(f);
   featureById.set(f.id, f);

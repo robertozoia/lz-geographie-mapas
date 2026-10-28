@@ -1,7 +1,7 @@
 // Draws map layers onto a 2D canvas through any d3 projection. Used for the
 // globe texture (equirectangular) and for the flat map (Equal Earth).
 import { geoPath, geoGraticule10 } from 'd3-geo';
-import { countries, lakes, ranges, seas, rivers, currents, borders, coastline, colorIndex, itemById, quizItems, featureById } from '../data.js';
+import { countries, lakes, ranges, seas, rivers, currents, fishing, borders, coastline, colorIndex, itemById, quizItems, featureById } from '../data.js';
 import { boxOf } from '../game/srs.js';
 
 export const COLORS = {
@@ -21,6 +21,8 @@ export const COLORS = {
   capital: '#2b2b2b',
   warm: '#ff5a4e',
   cold: '#3b8cff',
+  fishing: 'rgba(255, 212, 0, 0.42)',
+  fishingLine: 'rgba(200, 150, 0, 0.9)',
 };
 
 export const BOX_COLORS = ['#c9c9c9', '#ef5350', '#ffa726', '#ffe14d', '#9ccc65', '#43a047'];
@@ -152,14 +154,33 @@ export function paintBase(ctx, projection, opts) {
     }
   }
 
+  // fishing grounds (yellow, as on the class map), shown with the currents
+  // that feed them
+  if (opts.cat === 'current' || opts.cat === 'fishing') {
+    for (const f of fishing) {
+      ctx.beginPath();
+      path(f);
+      ctx.fillStyle = opts.mastery && opts.cat === 'fishing' ? BOX_COLORS[boxOf(opts.mastery, f.properties.id)] : COLORS.fishing;
+      ctx.fill();
+      ctx.setLineDash([5 * s, 4 * s]);
+      ctx.strokeStyle = COLORS.fishingLine;
+      ctx.lineWidth = 1.3 * s;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
   // ocean currents: red (warm) and blue (cold) arrows; painted here rather
   // than in paintLines so they are part of the globe texture too
-  if (opts.cat === 'current') {
+  if (opts.cat === 'current' || opts.cat === 'fishing') {
+    // in the fishing view the currents are only context, so they are fainter
+    if (opts.cat === 'fishing') ctx.globalAlpha = 0.55;
     for (const f of currents) {
       const item = itemById.get(f.properties.id);
       const color = opts.mastery ? BOX_COLORS[boxOf(opts.mastery, item.id)] : COLORS[item.kind];
-      paintArrow(ctx, path, f, color, 3.2 * s, opts.width);
+      paintArrow(ctx, path, f, opts.cat === 'fishing' ? COLORS[item.kind] : color, 3.2 * s, opts.width);
     }
+    ctx.globalAlpha = 1;
   }
 
   if (opts.lines) paintLines(ctx, path, opts);

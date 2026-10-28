@@ -194,13 +194,16 @@ async function polygonLayer(defs, srcName, nameField, prefix, cat, simplify) {
     const missing = d.match.filter((m) => !src.features.some((f) => f.properties[field] === m));
     if (missing.length) console.warn(`  ⚠ ${prefix}${d.id}: unmatched ${missing.join(', ')}`);
     if (!parts.length) { errors.push(`${cat} ${d.id}: no geometry`); continue; }
-    raw.push(combine(prefix + d.id, parts));
+    const f = combine(prefix + d.id, parts);
+    if (d.clip) f.properties.clip = d.clip;
+    raw.push(f);
   }
   // One mapshaper run per item: some shapes overlap (the Adriatic is part of
   // the Mediterranean) and a shared dissolve would hand overlaps to one item.
   const shaped = [];
   for (const f of raw) {
-    const out = await shape([f], `-dissolve2 id -simplify ${simplify} weighted keep-shapes`);
+    const clip = f.properties.clip ? `-clip bbox=${f.properties.clip.join(',')}` : '';
+    const out = await shape([f], `-dissolve2 id ${clip} -simplify ${simplify} weighted keep-shapes`);
     const g = out.features[0]?.geometry;
     if (!g) { errors.push(`${f.properties.id}: empty geometry after simplify`); continue; }
     shaped.push(out.features[0]);
@@ -236,6 +239,21 @@ for (const d of catalog.currents) {
   items.push({ id, cat: 'current', kind: d.kind, n: d.n, c: d.c, t: d.t, ...(d.s && { s: 1 }), ...placement(f), ll: lineAnchor(f) });
 }
 
+// ----------------------------------------------------------- fishing grounds
+const fishingFeatures = [];
+for (const d of catalog.fishing) {
+  const id = 'f:' + d.id;
+  const ring = [...d.area, d.area[0]];
+  let f = { type: 'Feature', properties: { id }, geometry: { type: 'Polygon', coordinates: [ring] } };
+  // d3 expects clockwise outer rings; flip if the outline came out inside-out
+  if (geoArea(f) > 2 * Math.PI) f = { ...f, geometry: { type: 'Polygon', coordinates: [ring.slice().reverse()] } };
+  checkNames(id, d.n);
+  for (const c of d.currents) if (!catalog.currents.some((x) => x.id === c)) errors.push(`${id}: unknown current ${c}`);
+  fishingFeatures.push(f);
+  items.push({ id, cat: 'fishing', n: d.n, c: d.c, t: d.t, ...(d.s && { s: 1 }), ...placement(f),
+    a: round(geoArea(f) * 1e4, 3), currents: d.currents.map((c) => 'o:' + c) });
+}
+
 // ---------------------------------------------------------- lakes (draw only)
 const lakes = await readGeo('ne_50m_lakes');
 const lakeFeatures = (await shape(
@@ -256,6 +274,7 @@ const topo = topology({
   ranges: fc(rangeFeatures),
   lakes: fc(lakeFeatures),
   currents: fc(currentFeatures),
+  fishing: fc(fishingFeatures),
 }, 1e5);
 
 await mkdir('src/data', { recursive: true });
@@ -266,7 +285,7 @@ await writeFile('src/data/catalog.json', catText);
 
 const count = (cat) => items.filter((i) => i.cat === cat).length;
 console.log(`\n✓ ${count('country')} countries, ${count('capital')} capitals, ${count('river')} rivers, ` +
-  `${count('sea')} seas, ${count('range')} ranges, ${count('current')} currents (+${count('territory')} territories)`);
+  `${count('sea')} seas, ${count('range')} ranges, ${count('current')} currents, ${count('fishing')} fishing grounds (+${count('territory')} territories)`);
 console.log(`  class lists: ${items.filter((i) => i.s && i.cat === 'river').length} rivers, ` +
   `${items.filter((i) => i.s && i.cat === 'sea').length} seas, ${items.filter((i) => i.s && i.cat === 'current').length} currents`);
 console.log(`  geo.json ${(geoText.length / 1024).toFixed(0)} KB, catalog.json ${(catText.length / 1024).toFixed(0)} KB`);

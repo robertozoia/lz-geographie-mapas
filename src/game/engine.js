@@ -19,21 +19,28 @@ export function autoTier(progress, cat, cont) {
   return 3;
 }
 
-function roundPool(profile, cat, cont, diff) {
-  let maxTier = diff === 'auto' ? autoTier(profile.progress, cat, cont) : Number(diff);
-  let items = pool(cat, cont, maxTier);
+// Highest tier for a round. The class list is studied as a whole, so in
+// automatic mode it uses every tier (spaced repetition still picks weak items).
+export function maxTierFor(profile, { cat, cont, diff, list }) {
+  if (diff !== 'auto') return Number(diff);
+  return list === 'school' ? 3 : autoTier(profile.progress, cat, cont);
+}
+
+function roundPool(profile, cat, cont, diff, list) {
+  let maxTier = maxTierFor(profile, { cat, cont, diff, list });
+  let items = pool(cat, cont, maxTier, list);
   // small regions (e.g. rivers of Oceania) may need harder tiers to fill a round
-  while (items.length < Math.min(ROUND_LENGTH, pool(cat, cont).length) && maxTier < 3) {
-    items = pool(cat, cont, ++maxTier);
+  while (items.length < Math.min(ROUND_LENGTH, pool(cat, cont, 3, list).length) && maxTier < 3) {
+    items = pool(cat, cont, ++maxTier, list);
   }
   return items;
 }
 
-// Three plausible wrong answers: same category, nearby, distinct names.
-export function distractors(target, lang, rand = Math.random) {
+// Three plausible wrong answers: same category (and list), nearby, distinct names.
+export function distractors(target, lang, { list = 'all', rand = Math.random } = {}) {
   const taken = new Set([normalize(target.n[lang])]);
   const candidates = quizItems
-    .filter((i) => i.cat === target.cat && i.id !== target.id)
+    .filter((i) => i.cat === target.cat && i.id !== target.id && (list !== 'school' || i.s))
     .map((i) => ({ i, d: geoDistance(i.ll, target.ll) * (0.7 + rand() * 0.6) }))
     .sort((a, b) => a.d - b.d)
     .slice(0, 9);
@@ -53,7 +60,8 @@ const shuffle = (list, rand = Math.random) => list.map((x) => [rand(), x]).sort(
 export function makeRound(profile, config) {
   const { mode, cont, diff } = config;
   const cat = mode === 'capitals' ? 'capital' : config.cat;
-  let items = roundPool(profile, cat, cont, diff);
+  const list = config.list ?? 'all';
+  let items = roundPool(profile, cat, cont, diff, list);
   // capitals rounds are built from the countries the capitals belong to
   if (mode === 'capitals') items = items.map((c) => itemById.get(c.of));
   const now = Date.now();
@@ -64,7 +72,7 @@ export function makeRound(profile, config) {
   const questions = picked.map((item) => {
     if (mode === 'find') return { type: 'find', target: item, track: item.id };
     if (mode === 'name') {
-      return { type: 'name', target: item, track: item.id, options: shuffle([item, ...distractors(item, profile.lang)]) };
+      return { type: 'name', target: item, track: item.id, options: shuffle([item, ...distractors(item, profile.lang, { list })]) };
     }
     const capital = itemById.get(item.cap);
     return Math.random() < 0.5
@@ -76,7 +84,7 @@ export function makeRound(profile, config) {
 
 // Click tolerance in km for point and line targets, on top of the on-screen
 // pick tolerance.
-const NEAR_KM = { capital: 120, river: 80 };
+const NEAR_KM = { capital: 120, river: 80, current: 250 };
 
 // Check a map answer. `picked` are the items under the click (from pick()).
 export function checkMapAnswer(question, lon, lat, picked, seconds) {
@@ -105,7 +113,7 @@ export function recordAnswer(profile, round, question, result) {
   s.points += result.points;
 }
 
-export const BADGES = ['first', 'perfect', 'streak25', 'world', 'allcats', 'explorer', 'countries', 'capitals', 'rivers', 'seas', 'ranges'];
+export const BADGES = ['first', 'perfect', 'streak25', 'world', 'allcats', 'explorer', 'countries', 'capitals', 'rivers', 'seas', 'ranges', 'currents'];
 
 const learnedCount = (profile, cat) => quizItems.filter((i) => i.cat === cat && isLearned(profile.progress, i.id)).length;
 
@@ -134,6 +142,7 @@ export function awardBadges(profile, { perfect = false } = {}) {
     rivers: learnedCount(profile, 'river') >= 15,
     seas: learnedCount(profile, 'sea') >= 15,
     ranges: learnedCount(profile, 'range') >= 15,
+    currents: learnedCount(profile, 'current') >= 15,
   };
   const fresh = BADGES.filter((b) => earned[b] && !profile.badges[b]);
   for (const b of fresh) profile.badges[b] = Date.now();

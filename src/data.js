@@ -4,7 +4,7 @@ import { geoBounds } from 'd3-geo';
 import topo from './data/geo.json';
 import catalog from './data/catalog.json';
 
-export const CATS = ['country', 'capital', 'river', 'sea', 'range'];
+export const CATS = ['country', 'capital', 'river', 'sea', 'range', 'current'];
 export const CONTINENTS = ['af', 'eu', 'as', 'na', 'sa', 'oc'];
 
 export const items = catalog.items;
@@ -18,13 +18,14 @@ export const rivers = layer('rivers');
 export const seas = layer('seas');
 export const ranges = layer('ranges');
 export const lakes = layer('lakes');
+export const currents = layer('currents');
 
 export const borders = mesh(topo, topo.objects.countries, (a, b) => a !== b);
 export const coastline = mesh(topo, topo.objects.countries, (a, b) => a === b);
 
 // Geometry for each item id (capitals are points from the catalog).
 export const featureById = new Map();
-for (const f of [...countries, ...rivers, ...seas, ...ranges]) {
+for (const f of [...countries, ...rivers, ...seas, ...ranges, ...currents]) {
   f.id = f.properties.id;
   f.bounds = geoBounds(f);
   featureById.set(f.id, f);
@@ -53,7 +54,12 @@ export const colorIndex = new Map();
   geoms.forEach((g, i) => colorIndex.set(g.properties.id, assigned[i]));
 }
 
-// Items of one category, optionally restricted to a continent.
-export function pool(cat, cont = 'world', maxTier = 3) {
-  return quizItems.filter((i) => i.cat === cat && i.t <= maxTier && (cont === 'world' || i.c.includes(cont)));
+// Items of one category, optionally restricted to a continent and to the
+// class list (the school worksheets).
+export function pool(cat, cont = 'world', maxTier = 3, list = 'all') {
+  return quizItems.filter((i) => i.cat === cat && i.t <= maxTier && (cont === 'world' || i.c.includes(cont)) &&
+    (list !== 'school' || i.s));
 }
+
+// Whether a category has a class list to choose from.
+export const hasClassList = (cat) => quizItems.some((i) => i.cat === cat && i.s);

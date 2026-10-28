@@ -8,7 +8,7 @@ import { BADGES } from '../../game/engine.js';
 
 export const BADGE_ICONS = {
   first: '👣', perfect: '💯', streak25: '🔥', world: '🌍', allcats: '🧭', explorer: '🔭',
-  countries: '🛂', capitals: '🏛️', rivers: '🌊', seas: '⚓', ranges: '⛰️',
+  countries: '🛂', capitals: '🏛️', rivers: '🌊', seas: '⚓', ranges: '⛰️', currents: '🏄',
 };
 
 app.register('badges', () => {

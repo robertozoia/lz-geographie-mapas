@@ -1,7 +1,7 @@
 // Draws map layers onto a 2D canvas through any d3 projection. Used for the
 // globe texture (equirectangular) and for the flat map (Equal Earth).
 import { geoPath, geoGraticule10 } from 'd3-geo';
-import { countries, lakes, ranges, seas, rivers, borders, coastline, colorIndex, itemById, quizItems, featureById } from '../data.js';
+import { countries, lakes, ranges, seas, rivers, currents, borders, coastline, colorIndex, itemById, quizItems, featureById } from '../data.js';
 import { boxOf } from '../game/srs.js';
 
 export const COLORS = {
@@ -19,6 +19,8 @@ export const COLORS = {
   seaLine: 'rgba(255, 255, 255, 0.35)',
   graticule: 'rgba(255, 255, 255, 0.07)',
   capital: '#2b2b2b',
+  warm: '#ff5a4e',
+  cold: '#3b8cff',
 };
 
 export const BOX_COLORS = ['#c9c9c9', '#ef5350', '#ffa726', '#ffe14d', '#9ccc65', '#43a047'];
@@ -150,8 +152,53 @@ export function paintBase(ctx, projection, opts) {
     }
   }
 
+  // ocean currents: red (warm) and blue (cold) arrows; painted here rather
+  // than in paintLines so they are part of the globe texture too
+  if (opts.cat === 'current') {
+    for (const f of currents) {
+      const item = itemById.get(f.properties.id);
+      const color = opts.mastery ? BOX_COLORS[boxOf(opts.mastery, item.id)] : COLORS[item.kind];
+      paintArrow(ctx, path, f, color, 3.2 * s, opts.width);
+    }
+  }
+
   if (opts.lines) paintLines(ctx, path, opts);
   ctx.restore();
+}
+
+// Stroke a line feature with arrowheads along it and at its end. `wrapWidth`
+// skips arrowheads where the projected line jumps across the map edge.
+function paintArrow(ctx, path, f, color, width, wrapWidth) {
+  ctx.beginPath();
+  path(f);
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.lineWidth = width + 2.5 * (width / 3.2);
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+
+  const proj = path.projection();
+  const pts = f.geometry.coordinates.map((c) => proj(c)).filter(Boolean);
+  const head = (i) => {
+    const [x1, y1] = pts[Math.max(0, i - 2)], [x2, y2] = pts[i];
+    if (Math.hypot(x2 - x1, y2 - y1) > wrapWidth / 3 || (x1 === x2 && y1 === y2)) return;
+    const a = Math.atan2(y2 - y1, x2 - x1), L = width * 3.4;
+    ctx.beginPath();
+    ctx.moveTo(x2 + Math.cos(a) * L * 0.35, y2 + Math.sin(a) * L * 0.35);
+    ctx.lineTo(x2 - Math.cos(a - 0.5) * L, y2 - Math.sin(a - 0.5) * L);
+    ctx.lineTo(x2 - Math.cos(a + 0.5) * L, y2 - Math.sin(a + 0.5) * L);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 1.2 * (width / 3.2);
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.stroke();
+  };
+  // one arrowhead roughly every 15 waypoints (~30°), plus the end
+  for (let i = 15; i < pts.length - 6; i += 15) head(i);
+  head(pts.length - 1);
 }
 
 // Borders, coastline, rivers and capital dots (drawn as vector lines on the
@@ -222,7 +269,7 @@ export function paintHighlights(ctx, projection, list, { scale = 1 } = {}) {
     if (!feature) continue;
     ctx.beginPath();
     path(feature);
-    if (item.cat === 'river') {
+    if (item.cat === 'river' || item.cat === 'current') {
       ctx.strokeStyle = c.fill;
       ctx.lineWidth = 9 * scale;
       ctx.stroke();

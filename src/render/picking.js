@@ -13,10 +13,13 @@ function inBounds(f, lon, lat, tol) {
   return lon >= w - tol || lon <= e + tol; // crosses the antimeridian
 }
 
-// Shortest distance (degrees of arc, approximate) from a point to a line feature.
+// Shortest distance (degrees of arc, approximate) from a point to a line
+// feature, or to the outline of a polygon feature.
 export function distanceToLine(f, lon, lat) {
   const g = f.geometry;
-  const lines = g.type === 'LineString' ? [g.coordinates] : g.coordinates;
+  const lines = g.type === 'LineString' ? [g.coordinates]
+    : g.type === 'MultiLineString' || g.type === 'Polygon' ? g.coordinates
+    : g.coordinates.flat(); // MultiPolygon
   const k = Math.cos(lat * DEG);
   let best = Infinity;
   for (const line of lines) {
@@ -42,27 +45,15 @@ const wrap = (d) => (d > 180 ? d - 360 : d < -180 ? d + 360 : d);
 export function distanceKm(item, lon, lat) {
   if (item.cat === 'capital') return geoDistance([lon, lat], item.ll) * EARTH_KM;
   const f = featureById.get(item.id);
-  if (item.cat === 'river') return distanceToLine(f, lon, lat) * DEG * EARTH_KM;
-  if (geoContains(f, [lon, lat])) return 0;
-  return nearestVertex(f, lon, lat) * EARTH_KM;
-}
-
-function nearestVertex(f, lon, lat) {
-  const g = f.geometry;
-  const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
-  let best = Infinity;
-  for (const poly of polys) {
-    for (const ring of poly) {
-      const step = Math.max(1, Math.floor(ring.length / 400));
-      for (let i = 0; i < ring.length; i += step) best = Math.min(best, geoDistance([lon, lat], ring[i]));
-    }
-  }
-  return best;
+  if (item.cat !== 'river' && item.cat !== 'current' && geoContains(f, [lon, lat])) return 0;
+  return distanceToLine(f, lon, lat) * DEG * EARTH_KM;
 }
 
 // Items of the given categories under (lon, lat). `tol` is the click
 // tolerance in degrees (depends on zoom). Results are ordered from most to
-// least specific: points, lines, then polygons by increasing area.
+// least specific: points, lines, polygons containing the point (smallest
+// first), then countries whose coast is within the tolerance (nearest first),
+// so small islands can be tapped without stealing taps from their neighbours.
 export function pick(lon, lat, tol, cats) {
   const hits = [];
   for (const item of items) {
@@ -74,15 +65,15 @@ export function pick(lon, lat, tol, cats) {
     }
     const f = featureById.get(item.id);
     if (!f || !inBounds(f, lon, lat, tol)) continue;
-    if (item.cat === 'river') {
+    if (item.cat === 'river' || item.cat === 'current') {
+      // currents are schematic arrows, so they get a wider tolerance
       const d = distanceToLine(f, lon, lat);
-      if (d <= tol) hits.push({ item, rank: 1, d });
+      if (d <= (item.cat === 'current' ? tol * 1.6 : tol)) hits.push({ item, rank: 1, d });
     } else if (geoContains(f, [lon, lat])) {
       hits.push({ item, rank: 2, d: item.a ?? 0 });
-    } else if (item.cat === 'country' && item.r < 2) {
-      // tiny countries and islands get a generous circle around them
-      const d = geoDistance([lon, lat], item.ll) / DEG;
-      if (d <= Math.max(tol * 1.2, item.r)) hits.push({ item, rank: 1.5, d });
+    } else if (item.cat === 'country' || item.cat === 'territory') {
+      const d = distanceToLine(f, lon, lat);
+      if (d <= tol) hits.push({ item, rank: 3, d });
     }
   }
   return hits.sort((a, b) => a.rank - b.rank || a.d - b.d).map((h) => h.item);

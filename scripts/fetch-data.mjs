@@ -5,6 +5,7 @@ import path from 'node:path';
 const BASE = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/';
 const LAYERS = [
   'ne_50m_admin_0_countries',
+  'ne_50m_admin_0_map_units',
   'ne_10m_populated_places',
   'ne_10m_rivers_lake_centerlines',
   'ne_50m_lakes',

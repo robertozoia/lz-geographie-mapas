@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pick, distanceKm } from '../src/render/picking.js';
-import { items, itemById, CATS } from '../src/data.js';
+import { items, itemById, CATS, pool } from '../src/data.js';
 import { review, weightedSample } from '../src/game/srs.js';
 import { normalize } from '../src/i18n.js';
 import { makeRound, distractors, checkMapAnswer, autoTier } from '../src/game/engine.js';
@@ -13,8 +13,24 @@ describe('picking', () => {
     expect(ids(pick(-58.4, -34.6, 0.5, ['country']))).toContain('c:ARG');
     expect(ids(pick(2.35, 48.85, 0.5, ['country']))).not.toContain('c:DEU');
   });
-  it('finds tiny countries with a tolerance circle', () => {
+  it('treats overseas parts as territories, not as the country', () => {
+    const hit = pick(-53, 4, 0.3, ['country']);
+    expect(ids(hit)).toEqual(['x:GUF']);
+    expect(hit[0].part).toBe('c:FRA');
+    expect(itemById.get('c:FRA').r).toBeLessThan(10);
+  });
+  it('finds tiny countries within the tap tolerance', () => {
     expect(ids(pick(12.45, 43.94, 0.3, ['country']))[0]).toBe('c:SMR');
+    expect(ids(pick(-61.37, 15.42, 0.2, ['country']))[0]).toBe('c:DMA');
+  });
+  it('prefers the island that was tapped over nearby small countries', () => {
+    const at = (id) => itemById.get(id).ll;
+    for (const [id, tol] of [['x:GLP', 1], ['x:MTQ', 1], ['x:MAF', 1], ['x:MSR', 1], ['c:VCT', 1], ['c:LCA', 1], ['c:KNA', 1], ['c:ATG', 1]]) {
+      expect(ids(pick(...at(id), tol, ['country']))[0], id).toBe(id);
+    }
+  });
+  it('finds archipelagos when tapping between islands', () => {
+    expect(ids(pick(-77.5, 24.5, 0.5, ['country']))).toContain('c:BHS');
   });
   it('finds rivers near a click', () => {
     expect(ids(pick(31.2, 30.0, 0.5, ['river']))).toContain('r:nile');
@@ -31,6 +47,16 @@ describe('picking', () => {
     expect(ids(pick(10, 46.5, 0.3, ['range']))).toContain('m:alps');
     expect(ids(pick(-70, -30, 0.3, ['range']))).toContain('m:andes');
   });
+  it('finds ocean currents near a click', () => {
+    expect(ids(pick(-75.5, 35, 0.5, ['current']))[0]).toBe('o:gulf-stream');
+    expect(ids(pick(-75, -32, 0.5, ['current']))[0]).toBe('o:humboldt');
+    expect(ids(pick(30, -48, 0.5, ['current']))[0]).toBe('o:antarctic');
+  });
+  it('finds the new worksheet seas inside their larger seas', () => {
+    expect(ids(pick(20, 63, 0.3, ['sea']))).toEqual(['s:bothnia', 's:baltic']);
+    expect(ids(pick(-62, 48, 0.3, ['sea']))[0]).toBe('s:st-lawrence-gulf');
+    expect(ids(pick(80, 74, 0.3, ['sea']))[0]).toBe('s:kara');
+  });
   it('finds capitals within tolerance', () => {
     expect(ids(pick(-3.7, 40.42, 0.3, ['capital']))[0]).toBe('k:ESP');
   });
@@ -46,7 +72,14 @@ describe('catalog', () => {
     for (const i of items) for (const l of ['en', 'es', 'de']) expect(i.n[l], `${i.id} ${l}`).toBeTruthy();
   });
   it('has every category', () => {
-    for (const c of CATS) expect(items.filter((i) => i.cat === c).length).toBeGreaterThan(30);
+    for (const c of CATS) expect(items.filter((i) => i.cat === c).length).toBeGreaterThanOrEqual(20);
+  });
+  it('matches the class worksheets', () => {
+    expect(pool('river', 'world', 3, 'school').length).toBe(45);
+    expect(pool('sea', 'world', 3, 'school').length).toBe(40);
+    expect(pool('current', 'world', 3, 'school').length).toBe(20);
+    const cur = items.filter((i) => i.cat === 'current');
+    expect(cur.every((i) => i.kind === 'warm' || i.kind === 'cold')).toBe(true);
   });
   it('links capitals and countries both ways', () => {
     for (const i of items.filter((x) => x.cat === 'capital')) expect(itemById.get(i.of).cap).toBe(i.id);
@@ -93,7 +126,14 @@ describe('engine', () => {
   });
   it('fills small regions from harder tiers', () => {
     const r = makeRound(profile(), { mode: 'find', cat: 'river', cont: 'oc', diff: 'auto' });
-    expect(r.questions.length).toBe(3);
+    expect(r.questions.length).toBe(2);
+  });
+  it('builds class-list rounds from the worksheet only, distractors included', () => {
+    for (const cat of ['river', 'sea', 'current']) {
+      const r = makeRound(profile(), { mode: 'name', cat, cont: 'world', diff: 'auto', list: 'school' });
+      expect(r.questions.length).toBe(10);
+      for (const q of r.questions) expect(q.options.every((o) => o.s), cat).toBe(true);
+    }
   });
   it('picks distinct, same-category distractors', () => {
     const target = itemById.get('c:FRA');

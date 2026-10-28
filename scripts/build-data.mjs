@@ -4,7 +4,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import mapshaper from 'mapshaper';
 import { topology } from 'topojson-server';
-import { geoCentroid, geoBounds, geoDistance, geoArea } from 'd3-geo';
+import { geoCentroid, geoBounds, geoDistance, geoArea, geoInterpolate } from 'd3-geo';
 import * as catalog from '../content/catalog.mjs';
 
 const LANGS = ['en', 'es', 'de'];
@@ -78,22 +78,38 @@ const countryFeatures = [];
 // ------------------------------------------------------------------ countries
 {
   const cfg = catalog.countries;
+  // Names, types and ranks come from the countries layer; geometry comes from
+  // the map-units layer, which lets overseas parts (e.g. French Guiana) be
+  // split off from their country.
   const src = await readGeo('ne_50m_admin_0_countries');
-  const features = [];
   const meta = new Map();
+  const metaFrom = (p, a3, extra = {}) => ({
+    quiz: false,
+    n: cfg.names[a3] ?? { en: p.NAME_EN, es: p.NAME_ES, de: p.NAME_DE },
+    c: cfg.continents[a3] ?? [CONTINENT[p.CONTINENT] ?? 'oc'],
+    t: cfg.tiers[a3] ?? (p.LABELRANK <= 2 ? 1 : p.LABELRANK <= 4 ? 2 : 3),
+    ...extra,
+  });
   for (const f of src.features) {
     const p = f.properties;
-    const a3 = cfg.merge[p.ADM0_A3] ?? p.ADM0_A3;
+    if (cfg.merge[p.ADM0_A3]) continue;
     const quiz = !cfg.exclude.includes(p.ADM0_A3) &&
       (cfg.types.includes(p.TYPE) || cfg.include.includes(p.ADM0_A3));
+    meta.set(p.ADM0_A3, metaFrom(p, p.ADM0_A3, { quiz }));
+  }
+  const units = await readGeo('ne_50m_admin_0_map_units');
+  const features = [];
+  for (const f of units.features) {
+    const p = f.properties;
+    let a3;
+    if (cfg.overseas.includes(p.GU_A3)) {
+      a3 = p.GU_A3;
+      meta.set(a3, metaFrom(p, a3, { t: 3, part: 'c:' + (cfg.merge[p.ADM0_A3] ?? p.ADM0_A3) }));
+    } else {
+      a3 = cfg.merge[p.ADM0_A3] ?? p.ADM0_A3;
+      if (!meta.has(a3)) meta.set(a3, metaFrom(p, a3));
+    }
     features.push({ ...f, properties: { a3 } });
-    if (cfg.merge[p.ADM0_A3]) continue;
-    meta.set(a3, {
-      quiz,
-      n: cfg.names[a3] ?? { en: p.NAME_EN, es: p.NAME_ES, de: p.NAME_DE },
-      c: cfg.continents[a3] ?? [CONTINENT[p.CONTINENT] ?? 'oc'],
-      t: cfg.tiers[a3] ?? (p.LABELRANK <= 2 ? 1 : p.LABELRANK <= 4 ? 2 : 3),
-    });
   }
   const shaped = await shape(features, '-dissolve2 a3 -simplify 18% weighted keep-shapes');
   const places = await readGeo('ne_10m_populated_places');
@@ -114,6 +130,7 @@ const countryFeatures = [];
     checkNames(id, m.n);
     const area = geoArea(f);
     const item = { id, cat: m.quiz ? 'country' : 'territory', n: m.n, c: m.c, t: m.t, ...placement(f), a: round(area * 1e4, 3) };
+    if (m.part) item.part = m.part;
     items.push(item);
     if (!m.quiz || cfg.noCapital.includes(a3)) continue;
 
@@ -153,24 +170,28 @@ const riverFeatures = [];
   for (const r of catalog.rivers) {
     const segs = src.features.filter((f) => r.match.includes(f.properties.name) && inBox(f, r.bbox));
     if (!segs.length) { errors.push(`river ${r.id}: no geometry`); continue; }
-    raw.push(combine('r:' + r.id, segs));
+    const f = combine('r:' + r.id, segs);
+    if (r.extra) f.geometry.coordinates.push(...r.extra);
+    raw.push(f);
   }
   const shaped = await shape(raw, '-simplify 25% weighted');
   for (const f of shaped.features) {
     const r = catalog.rivers.find((x) => 'r:' + x.id === f.properties.id);
     checkNames(f.properties.id, r.n);
     riverFeatures.push(f);
-    items.push({ id: f.properties.id, cat: 'river', n: r.n, c: r.c, t: r.t, ...placement(f), ll: lineAnchor(f) });
+    items.push({ id: f.properties.id, cat: 'river', n: r.n, c: r.c, t: r.t, ...(r.s && { s: 1 }), ...placement(f), ll: lineAnchor(f) });
   }
 }
 
 // ---------------------------------------------------- seas and mountain ranges
 async function polygonLayer(defs, srcName, nameField, prefix, cat, simplify) {
-  const src = await readGeo(srcName);
+  const sources = { [srcName]: await readGeo(srcName), lakes: await readGeo('ne_50m_lakes') };
   const raw = [];
   for (const d of defs) {
-    const parts = src.features.filter((f) => d.match.includes(f.properties[nameField]));
-    const missing = d.match.filter((m) => !src.features.some((f) => f.properties[nameField] === m));
+    const src = sources[d.src ?? srcName];
+    const field = d.src === 'lakes' ? 'name' : nameField;
+    const parts = src.features.filter((f) => d.match.includes(f.properties[field]));
+    const missing = d.match.filter((m) => !src.features.some((f) => f.properties[field] === m));
     if (missing.length) console.warn(`  ⚠ ${prefix}${d.id}: unmatched ${missing.join(', ')}`);
     if (!parts.length) { errors.push(`${cat} ${d.id}: no geometry`); continue; }
     raw.push(combine(prefix + d.id, parts));
@@ -189,12 +210,31 @@ async function polygonLayer(defs, srcName, nameField, prefix, cat, simplify) {
     checkNames(f.properties.id, d.n);
     const item = { id: f.properties.id, cat, n: d.n, c: d.c, t: d.t, ...placement(f), a: round(geoArea(f) * 1e4, 3) };
     if (d.kind) item.kind = d.kind;
+    if (d.s) item.s = 1;
     items.push(item);
   }
   return shaped;
 }
 const seaFeatures = await polygonLayer(catalog.seas, 'ne_10m_geography_marine_polys', 'name', 's:', 'sea', '4%');
 const rangeFeatures = await polygonLayer(catalog.ranges, 'ne_10m_geography_regions_polys', 'NAME', 'm:', 'range', '20%');
+
+// ------------------------------------------------------------ ocean currents
+// Hand-drawn paths, densified along great circles so drawing and picking agree.
+const currentFeatures = [];
+for (const d of catalog.currents) {
+  const coords = [d.path[0]];
+  for (let i = 1; i < d.path.length; i++) {
+    const a = d.path[i - 1], b = d.path[i];
+    const steps = Math.max(1, Math.ceil(geoDistance(a, b) * 180 / Math.PI / 2));
+    const interp = geoInterpolate(a, b);
+    for (let k = 1; k <= steps; k++) coords.push(interp(k / steps).map((x) => round(x)));
+  }
+  const id = 'o:' + d.id;
+  const f = { type: 'Feature', properties: { id }, geometry: { type: 'LineString', coordinates: coords } };
+  checkNames(id, d.n);
+  currentFeatures.push(f);
+  items.push({ id, cat: 'current', kind: d.kind, n: d.n, c: d.c, t: d.t, ...(d.s && { s: 1 }), ...placement(f), ll: lineAnchor(f) });
+}
 
 // ---------------------------------------------------------- lakes (draw only)
 const lakes = await readGeo('ne_50m_lakes');
@@ -215,6 +255,7 @@ const topo = topology({
   seas: fc(seaFeatures),
   ranges: fc(rangeFeatures),
   lakes: fc(lakeFeatures),
+  currents: fc(currentFeatures),
 }, 1e5);
 
 await mkdir('src/data', { recursive: true });
@@ -225,5 +266,7 @@ await writeFile('src/data/catalog.json', catText);
 
 const count = (cat) => items.filter((i) => i.cat === cat).length;
 console.log(`\n✓ ${count('country')} countries, ${count('capital')} capitals, ${count('river')} rivers, ` +
-  `${count('sea')} seas, ${count('range')} ranges (+${count('territory')} territories)`);
+  `${count('sea')} seas, ${count('range')} ranges, ${count('current')} currents (+${count('territory')} territories)`);
+console.log(`  class lists: ${items.filter((i) => i.s && i.cat === 'river').length} rivers, ` +
+  `${items.filter((i) => i.s && i.cat === 'sea').length} seas, ${items.filter((i) => i.s && i.cat === 'current').length} currents`);
 console.log(`  geo.json ${(geoText.length / 1024).toFixed(0)} KB, catalog.json ${(catText.length / 1024).toFixed(0)} KB`);
